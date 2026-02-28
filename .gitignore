@@ -1,0 +1,17 @@
+# Build output
+target/
+*.bin
+
+# Generated from the .ino
+src/SAQAirQuality.cpp
+
+# Secrets / certs
+*.der
+*.pem
+
+# Editors / tooling
+.vscode/
+.idea/
+.claude/
+.DS_Store
+Thumbs.db

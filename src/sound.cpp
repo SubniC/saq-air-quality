@@ -106,8 +106,6 @@ void SOUND::start_sampling()
 	soundSampligTimer.begin(on_sound_sampling_isr, 1000000 / SAMPLE_RATE, uSec, TIMER4);
 }
 
-// TODO: Creoq ue la libreria tiene un metodo para pausar, no es
-// excesivo el end?
 void SOUND::stop_sampling()
 {
 	soundSampligTimer.end();

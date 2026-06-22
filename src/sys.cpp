@@ -15,8 +15,8 @@ void SYS::begin()
 {
 	Time.zone(SYSTEM_TIMEZONE);
 	LOG_INIT();
-	// TODO: Especifico de photon!
-	Wire.setSpeed(400000);  // 400 kHz
+	// Photon-specific: I2C bus at 400 kHz
+	Wire.setSpeed(400000);
 }
 
 //Sincronizacion del tiempo

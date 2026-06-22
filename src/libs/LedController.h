@@ -212,13 +212,6 @@ typedef struct
 }LedPatternState;
 
 
-/*
-TODO: capturar el evento de fin de patron en la propia clasr, en las lalmadas indicaremos cuanto tiempo queremos que DarkTurquoise
-por ejemplo scanner( ..., 30) queremos escaner durante 30 segundos
-//el propio callback controlara cuando tiene que terminar
-
-
-*/
 class LedController {
 
 public:
@@ -247,9 +240,6 @@ public:
 	void fade(uint32_t, uint32_t, uint16_t, uint8_t, unsigned long=10000);
 	void fade(uint32_t, uint32_t, uint16_t, uint8_t, LedPatternDirection=LedPatternDirection::FORWARD,unsigned long=10000);
 
-
-
-	//TODO falta strobe()
 private:
     bool _is_init;
 	const uint8_t _brightness;

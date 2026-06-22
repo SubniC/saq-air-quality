@@ -22,7 +22,6 @@ bool BUZZER::play(const char *rrtl, bool force, bool block)
 			if(force)
 			{
 				rtttl::stop();
-				//TODO: no falta aquí un "return true;"?
 			}
 			else
 			{

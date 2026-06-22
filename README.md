@@ -2,7 +2,7 @@
 
 Firmware embebido en **C++** para **Particle Photon** (ARM Cortex-M3, **sin FPU**) que convierte un microcontrolador de 128 KB de RAM en una estación de calidad del aire con DSP de audio en tiempo real: muestrea el micrófono por **ISR a 16 kHz**, detecta **palmas** (FSM con umbral adaptativo μ + K·σ) y **silbidos** (algoritmo **Goertzel** en aritmética entera Q15), agrega un **AQI estándar EPA** (con NowCast) sobre media docena de sensores ambientales y publica todo por **MQTT** con auto-discovery de Home Assistant — todo bajo un **scheduler cooperativo no bloqueante, sin RTOS y con cero asignación de heap**.
 
-> Proyecto de portfolio de **mdps**: el foco está en la ingeniería de firmware — planificación determinista, pipeline de audio por interrupción con buffering multi-etapa, DSP en punto fijo y optimización agresiva del footprint en flash/RAM.
+> Proyecto personal de **mdps**: el foco está en la ingeniería de firmware — planificación determinista, pipeline de audio por interrupción con buffering multi-etapa, DSP en punto fijo y optimización agresiva del footprint en flash/RAM.
 
 ---
 
@@ -462,95 +462,25 @@ La disponibilidad de cada entidad se vincula al topic LWT (`Online`/`Offline`).
 
 ---
 
-# DEBUGGING Y LOGGING
+# Debugging y logging
 
-## Configuración
+El logging es opcional y se activa por *flags* de compilación. La salida base (puerto y
+baudrate) se define en [config/config.h](src/config/config.h) (`DEBUG_SERIAL_PORT`,
+`DEBUG_BAUD`); los canales se habilitan por dispositivo en `config_device_X.h`:
 
-En [config/config.h](src/config/config.h):
+| Flag | Canal |
+|------|-------|
+| `ENABLE_SERIAL_DEBUG` | Trazas de depuración por serie |
+| `ENABLE_SERIAL_MQTT_DEBUG` | Tramas MQTT por serie |
+| `ENABLE_MEGUNO_DEBUG` | Datos hacia MegunoLink |
+| `ENABLE_MEGUNO_TIMEPLOT_DEBUG` | Series de sensores para TimePlot |
 
-```c
-#define DEBUG_SERIAL_PORT Serial
-#define DEBUG_BAUD 115200
+Si ninguno está activo, el código de logging no se compila (cero coste en flash/RAM).
 
-// TODO: Sacar esto a otro fichero de config que no sea para tocar el usuario
-#if defined(ENABLE_SERIAL_DEBUG) || defined(ENABLE_SERIAL_MQTT_DEBUG) || defined(ENABLE_MEGUNO_DEBUG)
-    #define HAS_ANY_SERIAL_OUTPUT_ENABLED
-#endif
-```
-
-En `config_device_X.h`:
-```c
-//Enviar informacion de depuracion por serie
-#define ENABLE_SERIAL_DEBUG
-
-//Envia las tramas MQTT por serie
-#define ENABLE_SERIAL_MQTT_DEBUG
-
-//Envia datos de los sensores por serie
-#define ENABLE_MEGUNO_TIMEPLOT_DEBUG
-
-//Envia datos a MegunoLink
-#define ENABLE_MEGUNO_DEBUG
-```
-
-## Debug serie
-
-```c
-void setup() {
-  LOG_INIT();
-  DBG("boot ok");
-}
-```
-
-```c
-DBG("valor=%.2f", v);
-DATA("{T=%.2f H=%.2f}", t, h);
-MQTT_LOG("pub %s len=%u", topic, len);
-
-LOG_ONCE(DBG, "Este mensaje solo sale una vez");
-LOG_EVERY_MS(DBG, 5000, "cada 5s: uptime=%lus", (unsigned long)(millis()/1000));
-
-{ SCOPE_TIMER("calc_aqi"); /* ... trabajo ... */ }  // imprime al salir del scope
-
-uint8_t frame[32] = { /* ... */ };
-DBG_HEXDUMP(frame, sizeof(frame));
-```
-
-## MegunoLink
-
-```c
-// Mensaje estilo MegunoLink (pestaña "Message Monitor")
-ML_MESSAGE("INFO", "WiFi RSSI=%d", WiFi.RSSI());
-
-// TimePlot (pestaña "Time Plot")
-ML_TIMEPLOT_T("CO2", co2_avg.getFastAverage());
-ML_TIMEPLOT_TF("Noise", "%.1f", last_dbfs);
-
-// Data genérico (pestaña "Interface Panel" o "Message Monitor")
-ML_DATA("SENS", "T=%.2f H=%.2f P=%.1f", t, h, p);
-```
-
-## Macros agregadas (serial + MegunoLink)
-
-```c
-// En vez de:
-DBG_TAG("ERROR", "No se puede conectar al servidor MQTT");
-ML_MESSAGE("ERROR","No se puede conectar al servidor MQTT");
-// Ahora:
-LOG_ERROR("No se puede conectar al servidor MQTT");
-
-// Con variables:
-const char* host = MQTT_HOST;
-int port = MQTT_PORT;
-LOG_INFO("Conectando a %s:%d ...", host, port);
-
-// Timeplot: gráfica + mensaje legible
-float co2 = 815.0f;
-LOG_TIMEPLOT("CO2", "T", co2, "CO2=%.0f ppm", co2);
-
-// Salir de función con log
-if (!ok) LOG_RETURN(false, "NET", "Handshake TLS falló (%d)", tls_rc);
-```
+Macros principales: `LOG_INFO` / `LOG_ERROR` / `DBG` para mensajes formateados,
+`LOG_ONCE` y `LOG_EVERY_MS` para limitar la frecuencia, `SCOPE_TIMER` para medir el tiempo
+de un bloque, y `DBG_HEXDUMP` para volcar buffers. Las macros `LOG_*` escriben a la vez por
+serie y a MegunoLink cuando ambos canales están activos.
 
 ---
 
@@ -558,189 +488,53 @@ if (!ok) LOG_RETURN(false, "NET", "Handshake TLS falló (%d)", tls_rc);
 
 > **dBFS** = decibelios relativos a "full scale" del ADC (0 dBFS = saturación). Valores normales son negativos; cuanto más cerca de 0, más volumen.
 
----
+Todos los parámetros se definen en `config.h` / `config_device_X.h`. A continuación, los más
+relevantes para ajustar la detección.
 
-## Muestreo / buffers
+### Muestreo / buffers
 
-* **`AUDIO_SAMPLE_BUFFER_SIZE`**
-  Tamaño del **bloque** de muestras (por buffer).
+| Parámetro | Efecto |
+|-----------|--------|
+| `AUDIO_SAMPLE_BUFFER_SIZE` | Muestras por bloque. `block_ms ≈ size/rate·1000` (512 @ 16 kHz ≈ 32 ms). Más grande = más estable pero más latencia. |
+| `AUDIO_SAMPLE_NUM_BUFFERS` | Nº de buffers. Más buffers = más margen contra dropouts a costa de RAM. |
+| `AUDIO_SAMPLE_RATE_HZ` | Frecuencia de muestreo. Más alta = mejor respuesta a agudos y Goertzel, más CPU. |
 
-  * **Unidad:** muestras.
-  * **Efecto:** fija la duración del bloque:
-    `block_ms = (AUDIO_SAMPLE_BUFFER_SIZE / AUDIO_SAMPLE_RATE_HZ) * 1000`.
-  * **Sube** ⇒ bloque más largo (mejor estabilidad estadística, más latencia).
-  * **Baja** ⇒ bloque más corto (más reactivo, más "nervioso").
-  * **Ejemplo:** 512 a 16 kHz ⇒ ~32 ms/bloque.
+### Palmas (FSM)
 
-* **`AUDIO_SAMPLE_NUM_BUFFERS`**
-  Nº de buffers (doble/triple buffering).
+Envolvente (rectificación + IIR), umbral adaptativo `μ + K·σ` y FSM con validación temporal.
 
-  * **Unidad:** entero.
-  * **Efecto:** margen contra dropouts mientras se procesa un bloque.
-  * **Sube** ⇒ más RAM, menos riesgo de underrun.
-  * **Baja** ⇒ menos RAM, más sensible a jitter.
+| Parámetro | Efecto (subir ⇒) |
+|-----------|------------------|
+| `AUDIO_CLAP_K_SIGMA` | Ganancia sobre σ en el umbral; subir = menos falsos, menos sensible. |
+| `AUDIO_CLAP_SIGMA_FLOOR_DB` | Floor de σ en ambientes muy silenciosos (en cuentas de envolvente; el sufijo `_DB` es histórico). Subir = menos falsos en silencio. |
+| `AUDIO_CLAP_TRIGGER_MIN_DB` | Gate absoluto en dBFS; más cerca de 0 = más estricto. |
+| `AUDIO_CLAP_PEAK_MIN_MS` / `_MAX_MS` | Ventana válida de duración del pico (usa múltiplos de `block_ms`). |
+| `AUDIO_CLAP_MIN_TIME_BETWEEN_MS` | Separación mínima entre palmas de una secuencia. |
+| `AUDIO_CLAP_WAIT_AFTER_FIRST_MS` / `_PREV_MS` | Timeouts para cerrar la secuencia (1ª palma / palmas siguientes). |
+| `AUDIO_CLAP_DEBOUNCE_MS` | Silencio tras publicar para evitar rebotes. |
 
-* **`AUDIO_SAMPLE_RATE_HZ`**
-  Frecuencia de muestreo.
+### Silbidos (Goertzel, opcional)
 
-  * **Unidad:** Hz.
-  * **Efecto:** rango de frecuencias y coste CPU/RAM.
-  * **Sube** ⇒ mejor respuesta a agudos (y Goertzel más preciso), más CPU.
-  * **Baja** ⇒ menos coste, pero acota el rango de silbidos posibles.
+Banco de *bins* tonales entre `FMIN`–`FMAX` con criterios de tonalidad, estabilidad y duración.
 
----
+| Parámetro | Efecto |
+|-----------|--------|
+| `AUDIO_GOERTZEL_N` | Tamaño de bloque Goertzel; mayor = más resolución en frecuencia, más CPU. |
+| `AUDIO_GOERTZEL_BINS` | Nº de frecuencias evaluadas entre `FMIN` y `FMAX`. |
+| `AUDIO_GOERTZEL_FMIN_HZ` / `_FMAX_HZ` | Rango objetivo (silbido humano típico ~1.7–3.5 kHz). |
+| `AUDIO_WHISTLE_TONALITY_MIN` | Tonalidad mínima = pico/total [0..1]; subir = exige tono más puro. |
+| `AUDIO_WHISTLE_MIN_MS` | Duración acumulada mínima; subir = menos falsos. |
+| `AUDIO_WHISTLE_DB_EXTRA_GATE` | dB extra sobre el gate de palmas. |
+| `AUDIO_WHISTLE_DEBOUNCE_MS` | Silencio tras un silbido publicado. |
+| `AUDIO_WHISTLE_GUARD_AFTER_CLAP_MS` | Mute de silbidos tras una palma válida (evita falsos). |
+| `AUDIO_WHISTLE_FREQ_STABILITY_HZ` | Tolerancia para considerar el pico estable; subir = más permisivo con vibrato. |
 
-## Detector de palmas (FSM)
+### Consejos rápidos
 
-> Se basa en **envolvente** (rectificación + filtro exponencial), **umbral adaptativo** (μ + K·σ) y una **FSM** con validación temporal.
-
-* **`AUDIO_CLAP_K_SIGMA`**
-  Ganancia sobre la desviación estándar (σ) en el umbral `μ + K·σ`.
-
-  * **Unidad:** adimensional.
-  * **Sube** ⇒ menos falsos (más difícil disparar).
-  * **Baja** ⇒ más sensible.
-
-* **`AUDIO_CLAP_SIGMA_FLOOR_DB`**
-  **Floor mínimo** para σ cuando el fondo es muy estable.
-
-  * **Unidad real:** **cuentas de envolvente**, no dB (el sufijo `_DB` es histórico).
-  * **Sube** ⇒ evita que el umbral baje demasiado en silencio (menos falsos).
-  * **Baja** ⇒ umbral puede caer demasiado en ambientes muy tranquilos.
-
-* **`AUDIO_CLAP_TRIGGER_MIN_DB`**
-  Umbral **mínimo de nivel** en **dBFS** para considerar un bloque candidato.
-
-  * **Unidad:** dBFS (negativos).
-  * **Más cerca de 0** (p.ej. −20) ⇒ más estricto.
-  * **Más negativo** (p.ej. −30) ⇒ más sensible.
-
-* **`AUDIO_CLAP_PEAK_MIN_MS` / `AUDIO_CLAP_PEAK_MAX_MS`**
-  Ventana temporal válida para la **duración del pico** (RISING→PEAK).
-
-  * **Unidad:** ms.
-  * Ajusta el "ancho" de una palma válida.
-  * **Consejo:** usa múltiplos de `block_ms` (p.ej., con 32 ms/bloque, `32…200`).
-
-* **`AUDIO_CLAP_MIN_TIME_BETWEEN_MS`**
-  **Separación mínima** entre palmas consecutivas dentro de una secuencia.
-
-  * **Unidad:** ms.
-  * **Sube** ⇒ exige espacios más largos entre palmas.
-
-* **`AUDIO_CLAP_WAIT_AFTER_FIRST_MS`**
-  Timeout tras **1ª palma** para decidir si fue **solo una** o llegarán más.
-
-  * **Unidad:** ms.
-  * **Baja** ⇒ reporta "1 clap" antes (más ágil).
-  * **Sube** ⇒ espera más por una posible segunda palma.
-
-* **`AUDIO_CLAP_WAIT_AFTER_PREV_MS`**
-  Timeout tras la **última palma** de una secuencia (2–4 palmas).
-
-  * **Unidad:** ms.
-  * **Baja** ⇒ publica antes el recuento final.
-  * **Sube** ⇒ más margen para completar la secuencia.
-
-* **`AUDIO_CLAP_DEBOUNCE_MS`**
-  **Silencio** tras publicar para evitar rebotes.
-
-  * **Unidad:** ms.
-  * **Sube** ⇒ menos dobles disparos; menos responsivo a palmas seguidas.
-
----
-
-## Silbidos (Goertzel, opcional)
-
-> Analiza "bins" tonales entre `FMIN` y `FMAX` y exige **tonalidad** + **estabilidad** + **duración**.
-
-* **`AUDIO_GOERTZEL_N`**
-  Tamaño del bloque usado por Goertzel.
-
-  * **Unidad:** muestras.
-  * **Sube** ⇒ mejor resolución en frecuencia, más latencia/CPU.
-  * **Baja** ⇒ más rápido, menos preciso.
-
-* **`AUDIO_GOERTZEL_BINS`**
-  Nº de frecuencias evaluadas entre `FMIN` y `FMAX`.
-
-  * **Unidad:** entero.
-  * **Sube** ⇒ más fino localizar el pico, más CPU.
-  * **Baja** ⇒ menos CPU, puede "saltarse" frecuencias intermedias.
-
-* **`AUDIO_GOERTZEL_FMIN_HZ` / `AUDIO_GOERTZEL_FMAX_HZ`**
-  Rango de frecuencias objetivo para el silbido.
-
-  * **Unidad:** Hz.
-  * Acótalo a la zona cómoda de silbido humano (p.ej. 1.7–3.5 kHz).
-
-* **`AUDIO_WHISTLE_TONALITY_MIN`**
-  Umbral de **tonalidad** = `potencia_pico / potencia_total`.
-
-  * **Unidad:** [0..1].
-  * **Sube** (p.ej. 0.85) ⇒ exige tono muy puro (menos falsos por ruidos agudos).
-  * **Baja** ⇒ más sensible a voces/ruidos estrechos.
-
-* **`AUDIO_WHISTLE_MIN_MS`**
-  Duración mínima **acumulada** para declarar silbido.
-
-  * **Unidad:** ms.
-  * **Sube** ⇒ pide silbidos más largos (menos falsos).
-  * **Baja** ⇒ detecta más rápido (más falsos).
-
-* **`AUDIO_WHISTLE_DB_EXTRA_GATE`**
-  Extra de **dBFS** requerido por encima de `AUDIO_CLAP_TRIGGER_MIN_DB`.
-
-  * **Unidad:** dB.
-  * **Sube** ⇒ solo silbidos claramente audibles pasan (filtra golpes fuertes).
-  * **Baja** ⇒ más sensible.
-
-* **`AUDIO_WHISTLE_DEBOUNCE_MS`**
-  **Silencio** tras un silbido publicado.
-
-  * **Unidad:** ms.
-  * Evita detecciones repetidas del mismo silbido.
-
-* **`AUDIO_WHISTLE_GUARD_AFTER_CLAP_MS`**
-  Ventana de **mute** de silbidos tras una **palma válida**.
-
-  * **Unidad:** ms.
-  * Evita que el carácter tonal de una palma fuerte dispare "whistle".
-
-* **`AUDIO_WHISTLE_FREQ_STABILITY_HZ`**
-  Tolerancia para considerar el **pico estable** en frecuencia en bloques sucesivos.
-
-  * **Unidad:** Hz.
-  * **Baja** ⇒ exige silbido muy estable (menos falsos).
-  * **Sube** ⇒ más permisivo con vibrato/desafinación.
-
----
-
-## Consejos de ajuste rápido
-
-* Si hay **falsos claps**:
-
-  * Sube `AUDIO_CLAP_K_SIGMA` (3.5→4.0).
-  * Sube `AUDIO_CLAP_SIGMA_FLOOR_DB` (3.0→4.0).
-  * Acerca `AUDIO_CLAP_TRIGGER_MIN_DB` a 0 (−24→−22 dBFS).
-
-* Si **no detecta** palmas suaves:
-
-  * Baja `AUDIO_CLAP_TRIGGER_MIN_DB` (−24→−28).
-  * Baja `AUDIO_CLAP_K_SIGMA` ligeramente.
-
-* Si hay **whistles falsos** (por golpes agudos):
-
-  * Sube `AUDIO_WHISTLE_TONALITY_MIN` (0.85).
-  * Sube `AUDIO_WHISTLE_DB_EXTRA_GATE` (8–10 dB).
-  * Sube `AUDIO_WHISTLE_MIN_MS` (≥400 ms).
-  * Mantén `AUDIO_WHISTLE_GUARD_AFTER_CLAP_MS` activo (300–500 ms).
-
-* Si **no detecta** silbidos reales:
-
-  * Baja `TONALITY_MIN` (0.8→0.75).
-  * Baja `DB_EXTRA_GATE` (8→6 dB).
-  * Ajusta `FMIN/FMAX` a tu tono típico.
+- **Falsos claps**: sube `K_SIGMA` / `SIGMA_FLOOR_DB` y acerca `TRIGGER_MIN_DB` a 0.
+- **No detecta palmas suaves**: baja `TRIGGER_MIN_DB` y `K_SIGMA`.
+- **Falsos whistles** (golpes agudos): sube `TONALITY_MIN`, `DB_EXTRA_GATE` y `WHISTLE_MIN_MS`; mantén `GUARD_AFTER_CLAP_MS` activo.
+- **No detecta silbidos reales**: baja `TONALITY_MIN` y `DB_EXTRA_GATE`, y ajusta `FMIN/FMAX` a tu tono.
 
 ---
 
@@ -749,5 +543,7 @@ if (!ok) LOG_RETURN(false, "NET", "Handshake TLS falló (%d)", tls_rc);
 [MIT](LICENSE) © 2026 mdps
 
 ---
+
+> **Aviso:** proyecto experimental; las medidas son orientativas y no provienen de un instrumento calibrado/certificado. Entregado _tal cual_, sin garantía.
 
 _Un proyecto de mdps · 2026 · desarrollado en Murcia._

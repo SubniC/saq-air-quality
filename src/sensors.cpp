@@ -211,7 +211,6 @@ namespace SENSORS
 		}
 
 #ifdef CJMCU811_EXTERNAL_TEMPERATURE
-		//  TODO: No comprobamos que tengamos valores validos?
 		ccs811.setEnvironmentalData((uint8_t)round(humidity_avg.get()), temperature_avg.get());
 #else
 		ccs811.setTempOffset(ccs.calculateTemperature() - 25.0);
@@ -304,8 +303,6 @@ namespace SENSORS
 
 		const unsigned long now = millis();
 		const bool time_ok = (now - s_last_env_ms) >= CJMCU811_MIN_TIME_BETWEEN_ENVIRONMENTAL_DATA_UPDATE;
-
-		// TODO: Que pasa en los sistemas sin información de humedd? 
 
 		if (time_ok)
 		{

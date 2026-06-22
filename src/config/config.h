@@ -186,13 +186,12 @@
 #define DEBUG_BAUD 115200
 
 
-// SEGUROS Y CALCULOS - SACAR A OTRO FICHERO NO USER-CUSTOMIZABLE!
+// Derived defines and safety fallbacks (not meant for user editing)
 
 #if !defined(NEOPIXEL_LED_BRIGHTNESS) && defined(ENABLE_NEOPIXEL)
     #define NEOPIXEL_LED_BRIGHTNESS 50
 #endif
 
-// TODO: Sacar esto a otro fichero de config que no sea para tocar el usuario
 #if defined(ENABLE_SERIAL_DEBUG) || defined(ENABLE_SERIAL_MQTT_DEBUG) || defined(ENABLE_MEGUNO_DEBUG)
     #define HAS_ANY_SERIAL_OUTPUT_ENABLED
 #endif

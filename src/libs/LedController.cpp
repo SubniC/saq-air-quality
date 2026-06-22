@@ -20,7 +20,6 @@ LedController::~LedController() {
 
 bool LedController::setWorkingMode(LedWorkingModes mode)
 {
-    //TODO: Limpiar las cosas que procesa
     if(mode != activeMode)
     {
         //Apagamos todos los leds
@@ -123,7 +122,7 @@ void LedController::_indivdual_loop()
                         break;
                     //Si el modo del led es fijo
                     case LedMode::FIXED:
-                    //TODO: Ojo la comparacion no funciona si se dimea el brillo
+                    // Note: this comparison does not account for brightness dimming
                         //Miramos si ya esta del color deseado (black apra apagar)
                         if (_system_led_workers[j].color3 != _led_strip->getPixelColor(j))
                         {

@@ -11,10 +11,6 @@
 #include "utils/debug.h"
 
 
-// TODO MDPS: Este modulo ha sido CHATOPTIMIZADO y necesita revision manual para eliminar funciones y cosas que no se usan
-//  el chat hace un gran trabajo pero tambien llena de ponzoña los modulos y es necesrio hacer algo de limpieza.
-
-
 Adafruit_SSD1306 display_obj(LCD_PIN);
 
 // Logo MDPS para el splash
@@ -411,40 +407,6 @@ void SCREEN::update_sensors() {
   display_obj.setCursor(0, BOT_Y); // dentro de la banda inferior
   display_obj.print(line);
 }
-
-// void SCREEN::update_sensors()
-// {
-//   // Inferior: T | H | [LUX] | dB (último valor conocido)
-//   display_obj.fillRect(0, H() - 6, W(), 6, BLACK);
-
-//   float t_last = lastOrNan(temperature_avg);
-
-//   // TODO: Si el sistema no tiene humedad no debe salir mira rle define HAS_HUMIDITY_DATA
-//   float h_last = lastOrNan(humidity_avg);
-
-//   float lux_last =
-// #ifdef ENABLE_LUX_SENSOR
-//       lastOrNan(lux_avg);
-// #else
-//       NAN;
-// #endif
-//   float db_last = sound_meter->getNoiseLevel();
-
-//   char t_s[12], h_s[12], lux_s[12], db_s[12], line[80];
-//   fmtNum(t_s, sizeof(t_s), t_last, "%.1f");
-//   fmtNum(h_s, sizeof(h_s), h_last, "%.0f");
-//   fmtNum(lux_s, sizeof(lux_s), lux_last, "%.0f");
-//   fmtNum(db_s, sizeof(db_s), db_last, "%.0f");
-
-// #ifdef ENABLE_LUX_SENSOR
-//   snprintf(line, sizeof(line), "%sC | %s%% | %slx | %sdB", t_s, h_s, lux_s, db_s);
-// #else
-//   snprintf(line, sizeof(line), "%sC | %s%% | %sdB", t_s, h_s, db_s);
-// #endif
-
-//   display_obj.setCursor(0, H() - 6);
-//   display_obj.print(line);
-// }
 
 // Devuelve true si repintó (valor cambió), false si no hacía falta
 bool SCREEN::update_pm() {

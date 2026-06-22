@@ -22,9 +22,8 @@ namespace AQI
 }
 
 extern char g_mqtt_out[MQTT_OUT_BUFFER]; // PARA SALIDA (builder)
-extern char g_mqtt_in[MQTT_IN_BUFFER];   // PARA ENTRADA (NUL-terminar RX si hace falta)
-// TODO: Habilitar este tambien, ya hay varios sitios con char topic[128]
-extern char g_mqtt_topic[MQTT_TOPIC_BUFFER]; // PARA Topics
+extern char g_mqtt_in[MQTT_IN_BUFFER];   // RX buffer (NUL-terminated if needed)
+extern char g_mqtt_topic[MQTT_TOPIC_BUFFER]; // Topic buffer
 
 #ifdef ENABLE_NEOPIXEL
 extern LedController *system_leds;

@@ -49,9 +49,6 @@ namespace COMMS
         return JSON::publish_status_err(MQTT_LED_STATUS_TOPIC, "effect missing");
       }
 
-      // TODO: Añadir comprobación para no seguir despues de este punto si el effecto no existe en los que tenemos disponibles! 
-
-      // TODO: Notificar warning, se ha fijado un valor por defecto difierente al solicitado
       const uint16_t dur_ms = get_u16_or(d, "dur_ms", 1000, 100, 30000);
 
       uint32_t c1 = 0;

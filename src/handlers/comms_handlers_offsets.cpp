@@ -35,7 +35,6 @@ namespace COMMS
             return _publish_all_offsets(MQTT_OFFSETS_STATUS_TOPIC);
         }
 
-        // TODO: Adaptar a nuevos offsets con struct CalibOffsets y PERSISTENCE::cfg::
         bool on_offsets_set(const char * /*topic*/, const char *payload)
         {
             Doc d{};
@@ -51,7 +50,6 @@ namespace COMMS
                 float &slot;
             };
 
-            // TODO: Modificar en persistence.h y que el objeto CalibOffsets ya sea la lista esta de floats y keys
             auto &cfg = PERSISTENCE::cfg();
             Entry entries[] = {
                 {"temp", cfg.offsets.temp},

@@ -25,15 +25,6 @@
 // m = myMedian.getMedian(); // retieves the median
 //
 
-//TODO: Esto esta sin probar, lo hemos buscado apra ponerlo en el
-//peak detector en lugar del running average, tendriamos que implementar un metodo param
-//calcular el MAD https://en.wikipedia.org/wiki/Median_absolute_deviation
-//
-//ha salido de aqui:
-//http://forum.arduino.cc/index.php?topic=53081.msg1160999#msg1160999
-//
-//
-
 #include <inttypes.h>
 
 template <typename T, uint8_t N, T default_value> class FastRunningMedian {

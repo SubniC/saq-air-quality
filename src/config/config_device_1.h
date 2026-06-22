@@ -27,7 +27,6 @@
     #endif
 
     //Utilizar o no Neopixel leds
-    //TODO: SIN IMPLEMENTAR
     // #define ENABLE_NEOPIXEL
     // #define AUDIO_CLAP_WHISLE_VISUAL_DEBUG
 
